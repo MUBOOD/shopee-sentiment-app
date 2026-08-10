@@ -13,24 +13,22 @@ st.write("ระบบวิเคราะห์ความคิดเห็�
 # --- Sidebar สำหรับตั้งค่า AI ---
 st.sidebar.header("⚙️ การตั้งค่า AI")
 
-# 1. เช็กว่าใน Secrets ของระบบมี API Key ตั้งไว้หรือยัง
-has_secret_key = "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"] != ""
-
-# 2. ให้ผู้ใช้นอกเลือกกรอก API Key ของตัวเองได้ (กรณีที่คุณไม่ได้ใส่ Secrets ให้)
-user_api_key = st.sidebar.text_input(
+# 1. ประกาศสร้างตัวแปรสำหรับรับค่าจากช่องกรอก
+api_key_input = st.sidebar.text_input(
     "ใส่ Gemini API Key (ถ้ามี)",
     type="password",
-    help="หากเจ้าของเว็บไม่ได้ใส่ Key ไว้ในระบบ คุณสามารถนำ API Key ของคุณมาใส่เองได้ที่นี่"
+    help="หากเจ้าของระบบตั้งค่า Key ไว้แล้ว ไม่จำเป็นต้องกรอกช่องนี้"
 )
 
-# 3. ตรรกะการเลือกใช้ API Key:
-# - ถ้าผู้ใช้กรอก Key ของตัวเองมา -> ให้ใช้ Key ของผู้ใช้
-# - ถ้าผู้ใช้ไม่ได้กรอก -> ให้ดึง Key จาก Secrets ของเราหลังบ้านมาใช้แบบเงียบๆ
-if user_api_key:
-    api_key = user_api_key
+# 2. เช็กว่าใน Secrets ของ Streamlit มี Key อยู่ไหม
+has_secret_key = "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"] != ""
+
+# 3. กำหนดค่า api_key ที่จะนำไปใช้งาน
+if api_key_input:
+    api_key = api_key_input
 elif has_secret_key:
     api_key = st.secrets["GEMINI_API_KEY"]
-    st.sidebar.caption("🟢 เปิดใช้งาน AI ด้วยระบบอัตโนมัติเรียบร้อย")
+    st.sidebar.caption("🟢 เปิดใช้งานระบบ AI อัตโนมัติเรียบร้อย")
 else:
     api_key = None
 
