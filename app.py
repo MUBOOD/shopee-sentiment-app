@@ -199,9 +199,15 @@ if uploaded_file is not None:
     st.markdown("---")
     st.subheader("💡 สรุปจุดดี-จุดด้อย (วิเคราะห์ด้วย AI)")
 
-    if api_key_input:
-        with st.spinner("🤖 AI กำลังอ่านรีวิวและสรุปจุดดี-จุดด้อยให้คุณ..."):
-            ai_data = analyze_pros_cons_with_ai(std_df, api_key_input)
+    if api_key:  # 👈 ใช้ api_key ตัวกลาง (ที่ดึงมาจาก Secrets แล้ว)
+    with st.spinner("🤖 AI กำลังประมวลผล..."):
+        ai_data = analyze_pros_cons_with_ai(std_df, api_key)
+    
+    if ai_data:
+        # โค้ดแสดงผล Pros / Cons ตามปกติ...
+        pass
+else:
+    st.info("👉 กรุณาใส่ Gemini API Key ที่ Sidebar ด้านซ้าย เพื่อเปิดการใช้งานส่วนสรุป AI")
 
         if ai_data:
             col_pros, col_cons = st.columns(2)
