@@ -12,11 +12,20 @@ st.write("ระบบวิเคราะห์ความคิดเห็�
 
 # --- Sidebar สำหรับใส่ Gemini API Key ---
 st.sidebar.header("⚙️ การตั้งค่า AI")
+
+# 1. ดึงค่าจาก Secrets บน Streamlit Cloud (ถ้ามี)
+secret_key = st.secrets.get("GEMINI_API_KEY", "")
+
+# 2. ช่องให้กรอก API Key (ถ้ามีค่าใน Secrets จะเอามาใส่ให้อัตโนมัติ)
 api_key_input = st.sidebar.text_input(
     "ใส่ Gemini API Key",
+    value=secret_key,
     type="password",
-    help="รับ API Key ฟรีได้จาก Google AI Studio (https://aistudio.google.com/)",
+    help="หากตั้งค่า Secrets บน Streamlit Cloud ไว้แล้ว ระบบจะดึงให้อัตโนมัติ"
 )
+
+# 3. กำหนดค่า API Key ที่จะใช้วิเคราะห์
+api_key = api_key_input if api_key_input else secret_key
 
 # --- 0. แม็บชื่อคอลัมน์ รองรับทั้งภาษาไทย/อังกฤษ ---
 COLUMN_MAP = {
