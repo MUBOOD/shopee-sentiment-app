@@ -199,34 +199,30 @@ if uploaded_file is not None:
     st.markdown("---")
     st.subheader("💡 สรุปจุดดี-จุดด้อย (วิเคราะห์ด้วย AI)")
 
-    if api_key:  # 👈 ใช้ api_key ตัวกลาง (ที่ดึงมาจาก Secrets แล้ว)
+    Python
+if api_key:
+    # 👈 บรรทัดนี้ต้องย่อหน้าเข้ามา 1 Tab (4 สเปซ)
     with st.spinner("🤖 AI กำลังประมวลผล..."):
         ai_data = analyze_pros_cons_with_ai(std_df, api_key)
-    
+
     if ai_data:
-        # โค้ดแสดงผล Pros / Cons ตามปกติ...
-        pass
+        col_pros, col_cons = st.columns(2)
+        
+        with col_pros:
+            st.markdown("#### 🟢 ข้อดีที่คนพูดถึงเยอะที่สุด")
+            for item in ai_data.get("pros", []):
+                pct = min(max(int(item.get('pct', 0)), 0), 100)
+                st.container(border=True).markdown(f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*")
+                st.progress(pct / 100.0)
+
+        with col_cons:
+            st.markdown("#### 🔴 ข้อเสียที่ต้องระวัง / จุดควรปรับปรุง")
+            for item in ai_data.get("cons", []):
+                pct = min(max(int(item.get('pct', 0)), 0), 100)
+                st.container(border=True).markdown(f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*")
+                st.progress(pct / 100.0)
 else:
     st.info("👉 กรุณาใส่ Gemini API Key ที่ Sidebar ด้านซ้าย เพื่อเปิดการใช้งานส่วนสรุป AI")
-
-        if ai_data:
-            col_pros, col_cons = st.columns(2)
-
-            with col_pros:
-                st.markdown("### 🟢 ข้อดีที่คนพูดถึงเยอะ")
-                for item in ai_data.get("pros", []):
-                    pct = item.get('pct', 0)
-                    st.success(f"**{item.get('topic')}** ({pct}%)")
-                    st.progress(min(pct / 100.0, 1.0))
-
-            with col_cons:
-                st.markdown("### 🔴 ข้อเสียที่ต้องระวัง")
-                for item in ai_data.get("cons", []):
-                    pct = item.get('pct', 0)
-                    st.error(f"**{item.get('topic')}** ({pct}%)")
-                    st.progress(min(pct / 100.0, 1.0))
-    else:
-        st.info("👉 กรุณาใส่ **Gemini API Key** ที่ Sidebar ด้านซ้าย เพื่อเปิดการใช้งานส่วนสรุป AI")
 
     st.markdown("---")
 
