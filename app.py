@@ -147,7 +147,7 @@ def analyze_pros_cons_with_ai(df: pd.DataFrame, api_key: str):
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-flash-latest",
             contents=prompt,
         )
 
