@@ -10,22 +10,29 @@ st.set_page_config(page_title="Shopee Sentiment Analyzer AI", layout="wide")
 st.title("🛒 Shopee Product Review Sentiment Analyzer")
 st.write("ระบบวิเคราะห์ความคิดเห็นรีวิวสินค้า Shopee (รองรับทั้งแบบมีข้อความและให้ดาวอย่างเดียว)")
 
-# --- Sidebar สำหรับใส่ Gemini API Key ---
+# --- Sidebar สำหรับตั้งค่า AI ---
 st.sidebar.header("⚙️ การตั้งค่า AI")
 
-# 1. ดึงค่าจาก Secrets บน Streamlit Cloud (ถ้ามี)
-secret_key = st.secrets.get("GEMINI_API_KEY", "")
+# 1. เช็กว่าใน Secrets ของระบบมี API Key ตั้งไว้หรือยัง
+has_secret_key = "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"] != ""
 
-# 2. ช่องให้กรอก API Key (ถ้ามีค่าใน Secrets จะเอามาใส่ให้อัตโนมัติ)
-api_key_input = st.sidebar.text_input(
-    "ใส่ Gemini API Key",
-    value=secret_key,
+# 2. ให้ผู้ใช้นอกเลือกกรอก API Key ของตัวเองได้ (กรณีที่คุณไม่ได้ใส่ Secrets ให้)
+user_api_key = st.sidebar.text_input(
+    "ใส่ Gemini API Key (ถ้ามี)",
     type="password",
-    help="หากตั้งค่า Secrets บน Streamlit Cloud ไว้แล้ว ระบบจะดึงให้อัตโนมัติ"
+    help="หากเจ้าของเว็บไม่ได้ใส่ Key ไว้ในระบบ คุณสามารถนำ API Key ของคุณมาใส่เองได้ที่นี่"
 )
 
-# 3. กำหนดค่า API Key ที่จะใช้วิเคราะห์
-api_key = api_key_input if api_key_input else secret_key
+# 3. ตรรกะการเลือกใช้ API Key:
+# - ถ้าผู้ใช้กรอก Key ของตัวเองมา -> ให้ใช้ Key ของผู้ใช้
+# - ถ้าผู้ใช้ไม่ได้กรอก -> ให้ดึง Key จาก Secrets ของเราหลังบ้านมาใช้แบบเงียบๆ
+if user_api_key:
+    api_key = user_api_key
+elif has_secret_key:
+    api_key = st.secrets["GEMINI_API_KEY"]
+    st.sidebar.caption("🟢 เปิดใช้งาน AI ด้วยระบบอัตโนมัติเรียบร้อย")
+else:
+    api_key = None
 
 # --- 0. แม็บชื่อคอลัมน์ รองรับทั้งภาษาไทย/อังกฤษ ---
 COLUMN_MAP = {
