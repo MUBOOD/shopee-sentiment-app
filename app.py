@@ -653,7 +653,7 @@ if uploaded_file is not None:
                 "Positive": st.column_config.NumberColumn("ด้านบวก (😀)"),
                 "Negative": st.column_config.NumberColumn("ด้านลบ (😡)"),
                 "Neutral": st.column_config.NumberColumn("เป็นกลาง (😐)"),
-                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด (รายการ)"),
+                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด ()"),
             },
             hide_index=True,
             use_container_width=True,
