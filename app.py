@@ -600,31 +600,55 @@ if uploaded_file is not None:
             .reset_index()
         )
 
-        # ดึงตัวเลขเฉพาะสีดำมาแสดงในการ์ด
-        black_row = var_summary[var_summary["variation"] == "สีดำ"]
-        if not black_row.empty:
-            b_total = int(black_row["Total"].values[0])
-            b_pos = int(black_row["Positive"].values[0])
-            b_neg = int(black_row["Negative"].values[0])
-            b_neu = int(black_row["Neutral"].values[0])
+        # 📌 สรุปยอดรวมรีวิวแยกตามรุ่น/สี (Variation Summary)
+        st.markdown("##### 📌 สรุปจำนวนรีวิวรวมแยกตามรุ่น/สี")
 
-            st.markdown("##### 🖤 สรุปยอดขาย/รีวิวสินค้า: **สีดำ**")
-            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            m_col1.metric("ยอดรวมทั้งหมด", f"{b_total:,} รายการ")
-            m_col2.metric("ด้านบวก 😀", f"{b_pos:,}")
-            m_col3.metric("ด้านลบ 😡", f"{b_neg:,}")
-            m_col4.metric("เป็นกลาง 😐", f"{b_neu:,}")
+        # คำนวณยอดรวมของแต่ละสี
+        var_summary = (
+            std_df.groupby("variation")["sentiment_result"]
+            .agg(
+                Positive=lambda x: (x == "Positive (ดี / ด้านบวก)").sum(),
+                Negative=lambda x: (x == "Negative (แย่ / ด้านลบ)").sum(),
+                Neutral=lambda x: (x == "Neutral (ปานกลาง / เป็นกลาง)").sum(),
+                Total="count",
+            )
+            .reset_index()
+        )
 
-        # ตารางสรุปทุกสี
-        st.markdown("##### 📋 ตารางเปรียบเทียบทุกรุ่น/สี")
+        # คำนวณยอดรวมทั้งหมดของทุกสี (Grand Total)
+        total_all = var_summary["Total"].sum()
+        pos_all = var_summary["Positive"].sum()
+        neg_all = var_summary["Negative"].sum()
+        neu_all = var_summary["Neutral"].sum()
+
+        # แสดง การ์ด Metric สรุปรวมยอดทุกสี
+        st.markdown("##### 📊 สรุปรวมยอดรีวิวสินค้าทุกรุ่น/สี")
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        m_col1.metric("ยอดรวมทั้งหมดทุกสี", f"{total_all:,} รายการ")
+        m_col2.metric("ด้านบวก 😀", f"{pos_all:,}")
+        m_col3.metric("ด้านลบ 😡", f"{neg_all:,}")
+        m_col4.metric("เป็นกลาง 😐", f"{neu_all:,}")
+
+        # เพิ่มแถว "รวมทุกสี" ต่อท้ายตาราง
+        total_row = pd.DataFrame([{
+            "variation": "รวมทุกสีทั้งหมด",
+            "Positive": pos_all,
+            "Negative": neg_all,
+            "Neutral": neu_all,
+            "Total": total_all
+        }])
+        var_summary_display = pd.concat([var_summary, total_row], ignore_index=True)
+
+        # แสดงตารางสรุปยอดรวมของทุกสี
+        st.markdown("##### 📋 ตารางเปรียบเทียบทุกรุ่น/สี (พร้อมแถวรวมยอด)")
         st.dataframe(
-            var_summary,
+            var_summary_display,
             column_config={
                 "variation": st.column_config.Column("รุ่น/สีสินค้า"),
                 "Positive": st.column_config.NumberColumn("ด้านบวก (😀)"),
                 "Negative": st.column_config.NumberColumn("ด้านลบ (😡)"),
                 "Neutral": st.column_config.NumberColumn("เป็นกลาง (😐)"),
-                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด"),
+                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด (รายการ)"),
             },
             hide_index=True,
             use_container_width=True,
