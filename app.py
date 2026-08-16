@@ -249,7 +249,7 @@ def generate_pdf_report(
         <meta charset="UTF-8">
         <style>
             @page {{ size: A4; margin: 15mm; background-color: #f8fafc; }}
-            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10pt; line-height: 1.5; }}
+            body {{ font-family: 'Sarabun', 'Loma', 'Garuda', 'Noto Sans Thai', 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10pt; line-height: 1.5; }}
             .header {{ background-color: #0f172a; color: #ffffff; margin: -15mm -15mm 20px -15mm; padding: 25px 20px; text-align: center; }}
             .header h1 {{ margin: 0 0 6px 0; font-size: 18pt; font-weight: 700; }}
             .header p {{ margin: 0; font-size: 10pt; color: #94a3b8; }}
