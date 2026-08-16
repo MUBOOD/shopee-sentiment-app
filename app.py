@@ -1,4 +1,5 @@
 import json
+import os
 import altair as alt
 from google import genai
 from google.genai import types
@@ -207,6 +208,12 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     return None
 
 
+# --- ฟอนต์ไทยสำหรับ PDF (ฝังไฟล์ในโปรเจกต์เอง ไม่พึ่งฟอนต์ของ server) ---
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_REGULAR_PATH = os.path.join(_APP_DIR, "fonts", "Waree.ttf")
+FONT_BOLD_PATH = os.path.join(_APP_DIR, "fonts", "Waree-Bold.ttf")
+
+
 # --- 3.5 ฟังก์ชันสร้าง PDF Report ---
 def generate_pdf_report(
     total_reviews: int,
@@ -249,19 +256,19 @@ def generate_pdf_report(
           """
 
     ai_section_html = f"""
-        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
+        <div class="section-title">ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
         <table class="content-table">
             <tr>
-                <td class="column"><div class="col-title-pros">🟢 จุดเด่นที่ลูกค้าประทับใจ (Pros)</div>{pros_html}</td>
-                <td class="column"><div class="col-title-cons">🔴 ข้อเสีย / จุดที่ควรปรับปรุง (Cons)</div>{cons_html}</td>
+                <td class="column"><div class="col-title-pros">จุดเด่นที่ลูกค้าประทับใจ (Pros)</div>{pros_html}</td>
+                <td class="column"><div class="col-title-cons">ข้อเสีย / จุดที่ควรปรับปรุง (Cons)</div>{cons_html}</td>
             </tr>
         </table>
         """
   else:
     ai_section_html = """
-        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
+        <div class="section-title">ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
         <div style="background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; text-align: center; color: #9a3412; font-size: 10pt;">
-            ⚠️ ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้ (เช่น เชื่อมต่อ Gemini AI ไม่สำเร็จ หรือยังไม่ได้ใส่ API Key)<br>
+            ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้ (เช่น เชื่อมต่อ Gemini AI ไม่สำเร็จ หรือยังไม่ได้ใส่ API Key)<br>
             รายงานนี้แสดงเฉพาะภาพรวมสัดส่วน Sentiment เท่านั้น
         </div>
         """
@@ -273,7 +280,17 @@ def generate_pdf_report(
         <meta charset="UTF-8">
         <style>
             @page {{ size: A4; margin: 15mm; background-color: #f8fafc; }}
-            body {{ font-family: 'Sarabun', 'Loma', 'Garuda', 'Noto Sans Thai', 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10pt; line-height: 1.5; }}
+            @font-face {{
+                font-family: 'ThaiFont';
+                src: url('file://{FONT_REGULAR_PATH}') format('truetype');
+                font-weight: normal;
+            }}
+            @font-face {{
+                font-family: 'ThaiFont';
+                src: url('file://{FONT_BOLD_PATH}') format('truetype');
+                font-weight: bold;
+            }}
+            body {{ font-family: 'ThaiFont', 'Sarabun', 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10pt; line-height: 1.5; }}
             .header {{ background-color: #0f172a; color: #ffffff; margin: -15mm -15mm 20px -15mm; padding: 25px 20px; text-align: center; }}
             .header h1 {{ margin: 0 0 6px 0; font-size: 18pt; font-weight: 700; }}
             .header p {{ margin: 0; font-size: 10pt; color: #94a3b8; }}
