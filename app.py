@@ -1,4 +1,5 @@
 import json
+import time
 import altair as alt
 from google import genai
 from google.genai import types
@@ -158,7 +159,12 @@ def evaluate_sentiment(row) -> str:
   return "Neutral (ปานกลาง / เป็นกลาง)"
 
 
-# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ค้นหาโมเดลที่รองรับอัตโนมัติ) ---
+# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ใส่ Cache ป้องกันยิงซ้ำ) ---
+GEMINI_MODEL = "gemini-flash-latest"  # อัปเดตจาก gemini-2.0-flash-lite ที่ถูกปิดใช้งานแล้ว
+MAX_RETRIES = 3
+RETRY_BASE_DELAY_SECONDS = 3
+
+
 @st.cache_data(show_spinner=False)
 def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   if not review_texts:
@@ -189,39 +195,31 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     }}
     """
 
-  try:
-    client = genai.Client(api_key=api_key)
+  last_error = None
+  for attempt in range(MAX_RETRIES):
+    try:
+      client = genai.Client(api_key=api_key)
+      response = client.models.generate_content(
+          model=GEMINI_MODEL,
+          contents=prompt,
+          config=types.GenerateContentConfig(
+              response_mime_type="application/json",
+          ),
+      )
+      return json.loads(response.text)
+    except Exception as e:
+      last_error = e
+      error_str = str(e)
+      # หากเซิร์ฟเวอร์ของ Gemini มีคนใช้งานหนาแน่น (503) ให้รอแล้วลองใหม่
+      if "503" in error_str or "UNAVAILABLE" in error_str:
+        if attempt < MAX_RETRIES - 1:
+          time.sleep(RETRY_BASE_DELAY_SECONDS * (attempt + 1))
+          continue
+      break
 
-    # ดึงรายชื่อโมเดลที่รองรับการสร้างข้อความ (generateContent) ใน API Key นี้
-    available_models = []
-    for m in client.models.list():
-      methods = getattr(m, "supported_generation_methods", [])
-      if not methods or "generateContent" in methods:
-        available_models.append(m.name)
+  st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {last_error}")
+  return None
 
-    # ค้นหาโมเดลตระกูล flash หรือ pro ที่เปิดใช้งานอยู่
-    selected_model = None
-    for model_name in available_models:
-      if "flash" in model_name or "pro" in model_name:
-        selected_model = model_name
-        break
-
-    # หากไม่พบ ให้ใช้โมเดลแรกในรายการ
-    if not selected_model and available_models:
-      selected_model = available_models[0]
-
-    response = client.models.generate_content(
-        model=selected_model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
-    return json.loads(response.text)
-
-  except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
-    return None
 
 # --- 3.5 ฟังก์ชันสร้าง PDF Report ---
 def generate_pdf_report(
