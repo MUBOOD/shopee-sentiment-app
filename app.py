@@ -159,6 +159,8 @@ def evaluate_sentiment(row) -> str:
 
 
 # --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ใส่ Cache ป้องกันยิงซ้ำ) ---
+import time
+
 @st.cache_data(show_spinner=False)
 def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   if not review_texts:
@@ -166,42 +168,32 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
 
   sample_text = "\n".join([f"- {txt}" for txt in review_texts[:80]])
 
-  prompt = f"""
-    คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์รีวิวสินค้า 
-    จากข้อความรีวิวต่อไปนี้ จงสรุปจุดเด่น (Pros) 3 ข้อ และจุดด้อย (Cons) 3 ข้อ ที่ผู้ซื้อพูดถึงมากที่สุด 
-    พร้อมประเมินสัดส่วนเป็นเปอร์เซ็นต์ (%) ของคนที่พูดถึงเรื่องนั้นๆ 
+  prompt = f"""..."""  # เหมือนเดิม
 
-    รายการรีวิวสินค้า:
-    {sample_text}
+  max_retries = 3
+  for attempt in range(max_retries):
+    try:
+      client = genai.Client(api_key=api_key)
+      response = client.models.generate_content(
+          model="gemini-flash-latest",
+          contents=prompt,
+          config=types.GenerateContentConfig(
+              response_mime_type="application/json",
+          ),
+      )
+      return json.loads(response.text)
+    except Exception as e:
+      error_str = str(e)
+      if "503" in error_str or "UNAVAILABLE" in error_str:
+        if attempt < max_retries - 1:
+          wait_time = (attempt + 1) * 3  # รอ 3, 6 วินาที
+          time.sleep(wait_time)
+          continue
+      st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
+      return None
 
-    โครงสร้าง JSON ที่ต้องการ:
-    {{
-      "pros": [
-        {{"topic": "ชื่อจุดดี 1", "pct": 85}},
-        {{"topic": "ชื่อจุดดี 2", "pct": 70}},
-        {{"topic": "ชื่อจุดดี 3", "pct": 50}}
-      ],
-      "cons": [
-        {{"topic": "ชื่อจุดเสีย 1", "pct": 15}},
-        {{"topic": "ชื่อจุดเสีย 2", "pct": 10}},
-        {{"topic": "ชื่อจุดเสีย 3", "pct": 5}}
-      ]
-    }}
-    """
-
-  try:
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-flash-latest",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
-    return json.loads(response.text)
-  except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
-    return None
+  st.error("Gemini AI มีผู้ใช้งานหนาแน่น กรุณาลองใหม่อีกครั้งภายหลัง")
+  return None
 
 
 # --- 3.5 ฟังก์ชันสร้าง PDF Report ---
