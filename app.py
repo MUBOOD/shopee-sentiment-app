@@ -563,22 +563,23 @@ if uploaded_file is not None:
     st.subheader("📊 เปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)")
 
     fig_var = px.histogram(
-        std_df,
-        x="variation",
-        color="sentiment_result",
-        barmode="group",
-        color_discrete_map=color_map,
-        labels={
-            "variation": "รุ่น/สีสินค้า",
-            "count": "จำนวนรีวิว",
-            "sentiment_result": "Sentiment",
-        },
-    )
-    fig_var.update_layout(
-        yaxis_title="จำนวนรีวิว", xaxis_title="รุ่น/สีสินค้า", legend_title_text=""
-    )
-    st.plotly_chart(fig_var, use_container_width=True)
-
+    std_df,
+    x="variation",
+    color="sentiment_result",
+    barmode="group",
+    color_discrete_map=color_map,
+    text_auto=True,  # 👈 แสดงตัวเลขจำนวนบนแท่งกราฟอัตโนมัติ
+    labels={
+        "variation": "รุ่น/สีสินค้า",
+        "count": "จำนวนรีวิว",
+        "sentiment_result": "Sentiment",
+    },
+)
+fig_var.update_traces(textposition="outside")  # จัดวางตัวเลขให้อยู่บนยอดแท่ง
+fig_var.update_layout(
+    yaxis_title="จำนวนรีวิว", xaxis_title="รุ่น/สีสินค้า", legend_title_text=""
+)
+st.plotly_chart(fig_var, use_container_width=True)
   # ☁️ Word Cloud คำยอดฮิตในรีวิว
   review_text_pool = std_df[
       std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
