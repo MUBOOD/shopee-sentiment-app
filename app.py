@@ -213,35 +213,56 @@ def generate_pdf_report(
     pos_pct: float,
     neu_pct: float,
     neg_pct: float,
-    ai_data: dict,
+    ai_data: dict = None,
 ) -> bytes:
-  pros_html = ""
-  for item in ai_data.get("pros", []):
-    pct = min(max(int(item.get("pct", 0)), 0), 100)
-    pros_html += f"""
-        <div style="margin-bottom: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
-                <span>{item.get('topic')}</span>
-                <span style="color: #16a34a;">{pct}%</span>
-            </div>
-            <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
-                <div style="background-color: #22c55e; height: 100%; width: {pct}%;"></div>
-            </div>
-        </div>
-        """
+  ai_available = bool(ai_data and (ai_data.get("pros") or ai_data.get("cons")))
 
-  cons_html = ""
-  for item in ai_data.get("cons", []):
-    pct = min(max(int(item.get("pct", 0)), 0), 100)
-    cons_html += f"""
-        <div style="margin-bottom: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
-                <span>{item.get('topic')}</span>
-                <span style="color: #dc2626;">{pct}%</span>
-            </div>
-            <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
-                <div style="background-color: #ef4444; height: 100%; width: {pct}%;"></div>
-            </div>
+  if ai_available:
+    pros_html = ""
+    for item in ai_data.get("pros", []):
+      pct = min(max(int(item.get("pct", 0)), 0), 100)
+      pros_html += f"""
+          <div style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                  <span>{item.get('topic')}</span>
+                  <span style="color: #16a34a;">{pct}%</span>
+              </div>
+              <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                  <div style="background-color: #22c55e; height: 100%; width: {pct}%;"></div>
+              </div>
+          </div>
+          """
+
+    cons_html = ""
+    for item in ai_data.get("cons", []):
+      pct = min(max(int(item.get("pct", 0)), 0), 100)
+      cons_html += f"""
+          <div style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                  <span>{item.get('topic')}</span>
+                  <span style="color: #dc2626;">{pct}%</span>
+              </div>
+              <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                  <div style="background-color: #ef4444; height: 100%; width: {pct}%;"></div>
+              </div>
+          </div>
+          """
+
+    ai_section_html = f"""
+        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
+        <table class="content-table">
+            <tr>
+                <td class="column"><div class="col-title-pros">🟢 จุดเด่นที่ลูกค้าประทับใจ (Pros)</div>{pros_html}</td>
+                <td class="column"><div class="col-title-cons">🔴 ข้อเสีย / จุดที่ควรปรับปรุง (Cons)</div>{cons_html}</td>
+            </tr>
+        </table>
+        """
+  else:
+    ai_section_html = """
+        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
+        <div style="background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; text-align: center; color: #9a3412; font-size: 10pt;">
+            ⚠️ ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้ (เช่น เชื่อมต่อ Gemini AI ไม่สำเร็จ หรือยังไม่ได้ใส่ API Key)<br>
+            รายงานนี้แสดงเฉพาะภาพรวมสัดส่วน Sentiment เท่านั้น
         </div>
         """
 
@@ -281,13 +302,7 @@ def generate_pdf_report(
                 <td style="width: 25%; padding: 0 4px;"><div class="meta-card"><div class="meta-title">รีวิวแย่ (1-2 ดาว)</div><div class="meta-value" style="color: #dc2626;">{neg_pct:.1f}%</div></div></td>
             </tr>
         </table>
-        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
-        <table class="content-table">
-            <tr>
-                <td class="column"><div class="col-title-pros">🟢 จุดเด่นที่ลูกค้าประทับใจ (Pros)</div>{pros_html}</td>
-                <td class="column"><div class="col-title-cons">🔴 ข้อเสีย / จุดที่ควรปรับปรุง (Cons)</div>{cons_html}</td>
-            </tr>
-        </table>
+        {ai_section_html}
         <div class="footer">สร้างรายงานอัตโนมัติด้วย Shopee Sentiment Analyzer AI</div>
     </body>
     </html>
@@ -369,28 +384,33 @@ if uploaded_file is not None:
                 f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
             )
             st.progress(pct / 100.0)
-
-        # 📄 ปุ่มดาวน์โหลดรายงาน PDF
-        total_cnt = len(std_df)
-        pos_p = (pos_count / total_cnt) * 100 if total_cnt > 0 else 0
-        neu_p = (neu_count / total_cnt) * 100 if total_cnt > 0 else 0
-        neg_p = (neg_count / total_cnt) * 100 if total_cnt > 0 else 0
-
-        pdf_bytes = generate_pdf_report(
-            total_reviews=total_cnt,
-            pos_pct=pos_p,
-            neu_pct=neu_p,
-            neg_pct=neg_p,
-            ai_data=ai_data,
+      else:
+        st.warning(
+            "⚠️ ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้"
+            " แต่ยังดาวน์โหลดรายงาน PDF (ภาพรวม Sentiment) ได้ตามปกติ"
         )
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.download_button(
-            label="📄 ดาวน์โหลดรายงานสรุป AI (PDF)",
-            data=pdf_bytes,
-            file_name="shopee_sentiment_summary.pdf",
-            mime="application/pdf",
-        )
+      # 📄 ปุ่มดาวน์โหลดรายงาน PDF (แสดงเสมอ ไม่ว่า AI จะสำเร็จหรือไม่)
+      total_cnt = len(std_df)
+      pos_p = (pos_count / total_cnt) * 100 if total_cnt > 0 else 0
+      neu_p = (neu_count / total_cnt) * 100 if total_cnt > 0 else 0
+      neg_p = (neg_count / total_cnt) * 100 if total_cnt > 0 else 0
+
+      pdf_bytes = generate_pdf_report(
+          total_reviews=total_cnt,
+          pos_pct=pos_p,
+          neu_pct=neu_p,
+          neg_pct=neg_p,
+          ai_data=ai_data,
+      )
+
+      st.markdown("<br>", unsafe_allow_html=True)
+      st.download_button(
+          label="📄 ดาวน์โหลดรายงานสรุป (PDF)",
+          data=pdf_bytes,
+          file_name="shopee_sentiment_summary.pdf",
+          mime="application/pdf",
+      )
     else:
       st.info("ไม่พบข้อความรีวิวเพียงพอสำหรับวิเคราะห์ Pros & Cons")
   else:
