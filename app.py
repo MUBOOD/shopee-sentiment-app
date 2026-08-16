@@ -190,7 +190,10 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     """
 
   # รายชื่อโมเดลเรียงตามลำดับหลักและสำรอง
-  candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+  candidate_models = [
+    "gemini-2.5-flash-001",
+    "gemini-2.5-pro",
+]
   client = genai.Client(api_key=api_key)
 
   last_error = None
