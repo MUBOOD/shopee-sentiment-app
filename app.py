@@ -158,7 +158,7 @@ def evaluate_sentiment(row) -> str:
   return "Neutral (ปานกลาง / เป็นกลาง)"
 
 
-# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ใส่ Cache ป้องกันยิงซ้ำ) ---
+# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ค้นหาโมเดลอัตโนมัติ) ---
 @st.cache_data(show_spinner=False)
 def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   if not review_texts:
@@ -189,38 +189,51 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     }}
     """
 
-  # รายชื่อโมเดลเรียงตามลำดับหลักและสำรอง
-  candidate_models = [
-    "gemini-2.5-flash-001",
-    "gemini-2.5-pro",
-]
-  client = genai.Client(api_key=api_key)
+  try:
+    client = genai.Client(api_key=api_key)
 
-  last_error = None
+    # ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณเข้าถึงได้
+    valid_models = []
+    for m in client.models.list():
+      # คัดกรองเฉพาะโมเดลที่รองรับ generateContent
+      if hasattr(m, "supported_generation_methods") and (
+          "generateContent" in m.supported_generation_methods
+      ):
+        valid_models.append(m.name)
+      elif not hasattr(m, "supported_generation_methods"):
+        valid_models.append(m.name)
 
-  for model_name in candidate_models:
-    # พยายามยิงสูงสุด 3 ครั้งต่อโมเดล หากเจอ 503
-    for attempt in range(3):
-      try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-001",
-            contents=prompt,
-            config=types.GenerateContentConfig(
+    # ลำดับโมเดลที่ต้องการใช้งาน (เรียงตามลำดับความเหมาะสม)
+    preferred_keywords = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-pro",
+        "gemini-1.5-flash",
+    ]
+    selected_model = None
+
+    for keyword in preferred_keywords:
+      matched = [m for m in valid_models if keyword in m]
+      if matched:
+        selected_model = matched[0]
+        break
+
+    # หากหาไม่เจอในรายการที่ชอบ ให้ใช้โมเดลแรกสุดที่ใช้งานได้
+    if not selected_model:
+      selected_model = valid_models[0] if valid_models else "gemini-2.5-flash"
+
+    response = client.models.generate_content(
+        model=selected_model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
             response_mime_type="application/json",
         ),
     )
-        return json.loads(response.text)
-      except Exception as e:
-        last_error = e
-        err_msg = str(e)
-        if "503" in err_msg or "UNAVAILABLE" in err_msg:
-          time.sleep(2 * (attempt + 1))  # หน่วงเวลา 2, 4 วินาทีก่อนลองใหม่
-          continue
-        else:
-          break  # หากเป็นข้อผิดพลาดอื่น ให้สลับไปลองโมเดลถัดไป
+    return json.loads(response.text)
 
-  st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {last_error}")
-  return None
+  except Exception as e:
+    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
+    return None
 
 # --- 3.5 ฟังก์ชันสร้าง PDF Report ---
 def generate_pdf_report(
