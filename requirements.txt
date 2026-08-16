@@ -3,3 +3,6 @@ pandas
 altair
 google-genai
 weasyprint
+plotly
+wordcloud
+matplotlib

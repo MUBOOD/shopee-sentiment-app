@@ -1,11 +1,14 @@
 import json
 import os
 import altair as alt
+import matplotlib.pyplot as plt
+import plotly.express as px
 from google import genai
 from google.genai import types
 import pandas as pd
 import streamlit as st
 from weasyprint import HTML
+from wordcloud import WordCloud
 
 # ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Shopee Sentiment Analyzer AI", layout="wide")
@@ -460,12 +463,15 @@ if uploaded_file is not None:
       name="select", fields=["sentiment_result"]
   )
 
-  chart = (
+  bars = (
       alt.Chart(sentiment_counts)
       .mark_bar()
       .encode(
           x=alt.X(
-              "sentiment_result:N", title="Sentiment", sort=sentiment_order
+              "sentiment_result:N",
+              title="Sentiment",
+              sort=sentiment_order,
+              axis=alt.Axis(labelAngle=0),
           ),
           y=alt.Y("count:Q", title="จำนวนรีวิว"),
           color=alt.Color(
@@ -484,8 +490,14 @@ if uploaded_file is not None:
           ],
       )
       .add_params(click_selection)
-      .properties(height=350)
   )
+
+  # ป้ายตัวเลขจำนวนรีวิวบนยอดแท่ง
+  labels = bars.mark_text(
+      align="center", baseline="bottom", dy=-4, fontSize=13, fontWeight="bold"
+  ).encode(text="count:Q")
+
+  chart = (bars + labels).properties(height=350)
 
   event = st.altair_chart(
       chart, use_container_width=True, on_select="rerun", key="sentiment_chart"
@@ -506,6 +518,136 @@ if uploaded_file is not None:
   else:
     filtered_df = std_df
 
+  # 📈 กราฟแนวโน้ม Sentiment ตามช่วงเวลา
+  trend_df = std_df.copy()
+  trend_df["review_date_parsed"] = pd.to_datetime(
+      trend_df["review_date"], errors="coerce"
+  )
+  trend_df = trend_df.dropna(subset=["review_date_parsed"])
+
+  if not trend_df.empty:
+    st.markdown("---")
+    st.subheader("📈 แนวโน้ม Sentiment ตามช่วงเวลา")
+
+    df_trend = (
+        trend_df.groupby(["review_date_parsed", "sentiment_result"])
+        .size()
+        .reset_index(name="count")
+        .sort_values("review_date_parsed")
+    )
+
+    fig_line = px.line(
+        df_trend,
+        x="review_date_parsed",
+        y="count",
+        color="sentiment_result",
+        markers=True,
+        color_discrete_map=color_map,
+        labels={
+            "review_date_parsed": "วันที่รีวิว",
+            "count": "จำนวนรีวิว",
+            "sentiment_result": "Sentiment",
+        },
+    )
+    fig_line.update_layout(legend_title_text="")
+    st.plotly_chart(fig_line, use_container_width=True)
+
+  # 📊 กราฟเปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)
+  variation_values = std_df["variation"].dropna().unique()
+  has_variation_data = len(variation_values) > 1 or (
+      len(variation_values) == 1 and variation_values[0] != "N/A"
+  )
+
+  if has_variation_data:
+    st.markdown("---")
+    st.subheader("📊 เปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)")
+
+    fig_var = px.histogram(
+        std_df,
+        x="variation",
+        color="sentiment_result",
+        barmode="group",
+        color_discrete_map=color_map,
+        labels={
+            "variation": "รุ่น/สีสินค้า",
+            "count": "จำนวนรีวิว",
+            "sentiment_result": "Sentiment",
+        },
+    )
+    fig_var.update_layout(
+        yaxis_title="จำนวนรีวิว", xaxis_title="รุ่น/สีสินค้า", legend_title_text=""
+    )
+    st.plotly_chart(fig_var, use_container_width=True)
+
+  # ☁️ Word Cloud คำยอดฮิตในรีวิว
+  review_text_pool = std_df[
+      std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
+  ]
+
+  if not review_text_pool.empty:
+    st.markdown("---")
+    st.subheader("☁️ Word Cloud คำยอดฮิตในรีวิว")
+
+    wc_col1, wc_col2 = st.columns(2)
+
+    def render_wordcloud(container, text_series, title, colormap):
+      combined_text = " ".join(text_series.astype(str))
+      if not combined_text.strip():
+        container.info(f"ไม่มีข้อความเพียงพอสำหรับ {title}")
+        return
+      wc = WordCloud(
+          font_path=FONT_REGULAR_PATH,
+          width=800,
+          height=500,
+          background_color="white",
+          colormap=colormap,
+          collocations=False,
+          regexp=r"[\u0E00-\u0E7Fa-zA-Z']+",
+      ).generate(combined_text)
+      fig, ax = plt.subplots()
+      ax.imshow(wc, interpolation="bilinear")
+      ax.axis("off")
+      container.markdown(f"**{title}**")
+      container.pyplot(fig)
+      plt.close(fig)
+
+    pos_texts = review_text_pool[
+        review_text_pool["sentiment_result"] == "Positive (ดี / ด้านบวก)"
+    ]["review_text"]
+    neg_texts = review_text_pool[
+        review_text_pool["sentiment_result"] == "Negative (แย่ / ด้านลบ)"
+    ]["review_text"]
+
+    render_wordcloud(wc_col1, pos_texts, "🟢 รีวิวด้านบวก", "Greens")
+    render_wordcloud(wc_col2, neg_texts, "🔴 รีวิวด้านลบ", "Reds")
+
+  st.markdown("---")
+
+  # 🔎 ตัวกรองเพิ่มเติมสำหรับตาราง
+  st.subheader("🔎 ตัวกรองเพิ่มเติม")
+  filter_col1, filter_col2 = st.columns(2)
+
+  with filter_col1:
+    sentiment_filter_options = list(std_df["sentiment_result"].unique())
+    selected_sentiment_filter = st.multiselect(
+        "กรองตาม Sentiment:",
+        options=sentiment_filter_options,
+        default=sentiment_filter_options,
+    )
+
+  with filter_col2:
+    variation_filter_options = list(std_df["variation"].unique())
+    selected_variation_filter = st.multiselect(
+        "กรองตามรุ่น/สี:",
+        options=variation_filter_options,
+        default=variation_filter_options,
+    )
+
+  filtered_df = filtered_df[
+      filtered_df["sentiment_result"].isin(selected_sentiment_filter)
+      & filtered_df["variation"].isin(selected_variation_filter)
+  ]
+
   # 📋 ตารางแสดงผล
   st.subheader("📋 ตารางแสดงผลลัพธ์การวิเคราะห์")
   st.dataframe(
@@ -517,6 +659,17 @@ if uploaded_file is not None:
           "review_text",
           "sentiment_result",
       ]],
+      column_config={
+          "review_date": st.column_config.Column("วันที่"),
+          "product_name": st.column_config.Column("ชื่อสินค้า"),
+          "variation": st.column_config.Column("รุ่น/สี"),
+          "rating": st.column_config.NumberColumn("คะแนน", format="%d ⭐"),
+          "review_text": st.column_config.Column(
+              "ข้อความรีวิว", width="large"
+          ),
+          "sentiment_result": st.column_config.Column("ผลวิเคราะห์"),
+      },
+      hide_index=True,
       use_container_width=True,
   )
 
