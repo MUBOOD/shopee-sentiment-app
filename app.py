@@ -629,7 +629,7 @@ if uploaded_file is not None:
         # แสดง การ์ด Metric สรุปรวมยอดทุกสี
         st.markdown("##### 📊 สรุปรวมยอดรีวิวสินค้าทุกรุ่น/สี")
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("ยอดรวมทั้งหมดทุกสี", f"{total_all:,} รายการ")
+        m_col1.metric("ยอดรวมทั้งหมดทุกสี", f"{total_all:,} ")
         m_col2.metric("ด้านบวก 😀", f"{pos_all:,}")
         m_col3.metric("ด้านลบ 😡", f"{neg_all:,}")
         m_col4.metric("เป็นกลาง 😐", f"{neu_all:,}")
@@ -653,7 +653,7 @@ if uploaded_file is not None:
                 "Positive": st.column_config.NumberColumn("ด้านบวก (😀)"),
                 "Negative": st.column_config.NumberColumn("ด้านลบ (😡)"),
                 "Neutral": st.column_config.NumberColumn("เป็นกลาง (😐)"),
-                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด ()"),
+                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด (รายการ)"),
             },
             hide_index=True,
             use_container_width=True,
