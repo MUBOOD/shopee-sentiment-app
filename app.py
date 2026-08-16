@@ -189,20 +189,35 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     }}
     """
 
-  try:
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-flash-latest",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
-    return json.loads(response.text)
-  except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
-    return None
+  # รายชื่อโมเดลเรียงตามลำดับหลักและสำรอง
+  candidate_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+  client = genai.Client(api_key=api_key)
 
+  last_error = None
+
+  for model_name in candidate_models:
+    # พยายามยิงสูงสุด 3 ครั้งต่อโมเดล หากเจอ 503
+    for attempt in range(3):
+      try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        return json.loads(response.text)
+      except Exception as e:
+        last_error = e
+        err_msg = str(e)
+        if "503" in err_msg or "UNAVAILABLE" in err_msg:
+          time.sleep(2 * (attempt + 1))  # หน่วงเวลา 2, 4 วินาทีก่อนลองใหม่
+          continue
+        else:
+          break  # หากเป็นข้อผิดพลาดอื่น ให้สลับไปลองโมเดลถัดไป
+
+  st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {last_error}")
+  return None
 
 # --- 3.5 ฟังก์ชันสร้าง PDF Report ---
 def generate_pdf_report(
