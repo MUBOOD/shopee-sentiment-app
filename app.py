@@ -585,6 +585,50 @@ if uploaded_file is not None:
             legend_title_text="",
         )
         st.plotly_chart(fig_var, use_container_width=True)
+        # 📌 สรุปจำนวนรีวิวและยอดขายรวมแยกตามสี (เน้นสีดำ)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # คำนวณยอดรวม Sentiment แต่ละสี
+        var_summary = (
+            std_df.groupby("variation")["sentiment_result"]
+            .agg(
+                Positive=lambda x: (x == "Positive (ดี / ด้านบวก)").sum(),
+                Negative=lambda x: (x == "Negative (แย่ / ด้านลบ)").sum(),
+                Neutral=lambda x: (x == "Neutral (ปานกลาง / เป็นกลาง)").sum(),
+                Total="count",
+            )
+            .reset_index()
+        )
+
+        # ดึงตัวเลขเฉพาะสีดำมาแสดงในการ์ด
+        black_row = var_summary[var_summary["variation"] == "สีดำ"]
+        if not black_row.empty:
+            b_total = int(black_row["Total"].values[0])
+            b_pos = int(black_row["Positive"].values[0])
+            b_neg = int(black_row["Negative"].values[0])
+            b_neu = int(black_row["Neutral"].values[0])
+
+            st.markdown("##### 🖤 สรุปยอดขาย/รีวิวสินค้า: **สีดำ**")
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            m_col1.metric("ยอดรวมทั้งหมด", f"{b_total:,} รายการ")
+            m_col2.metric("ด้านบวก 😀", f"{b_pos:,}")
+            m_col3.metric("ด้านลบ 😡", f"{b_neg:,}")
+            m_col4.metric("เป็นกลาง 😐", f"{b_neu:,}")
+
+        # ตารางสรุปทุกสี
+        st.markdown("##### 📋 ตารางเปรียบเทียบทุกรุ่น/สี")
+        st.dataframe(
+            var_summary,
+            column_config={
+                "variation": st.column_config.Column("รุ่น/สีสินค้า"),
+                "Positive": st.column_config.NumberColumn("ด้านบวก (😀)"),
+                "Negative": st.column_config.NumberColumn("ด้านลบ (😡)"),
+                "Neutral": st.column_config.NumberColumn("เป็นกลาง (😐)"),
+                "Total": st.column_config.NumberColumn("ยอดรวมรีวิวทั้งหมด"),
+            },
+            hide_index=True,
+            use_container_width=True,
+        )
 
     # ☁️ Word Cloud คำยอดฮิตในรีวิว
     review_text_pool = std_df[
