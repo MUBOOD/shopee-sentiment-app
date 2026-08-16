@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 import pandas as pd
 import streamlit as st
+from weasyprint import HTML
 
 # ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Shopee Sentiment Analyzer AI", layout="wide")
@@ -191,7 +192,7 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   try:
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-1.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -201,6 +202,94 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   except Exception as e:
     st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
     return None
+
+
+# --- 3.5 ฟังก์ชันสร้าง PDF Report ---
+def generate_pdf_report(
+    total_reviews: int,
+    pos_pct: float,
+    neu_pct: float,
+    neg_pct: float,
+    ai_data: dict,
+) -> bytes:
+  pros_html = ""
+  for item in ai_data.get("pros", []):
+    pct = min(max(int(item.get("pct", 0)), 0), 100)
+    pros_html += f"""
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                <span>{item.get('topic')}</span>
+                <span style="color: #16a34a;">{pct}%</span>
+            </div>
+            <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                <div style="background-color: #22c55e; height: 100%; width: {pct}%;"></div>
+            </div>
+        </div>
+        """
+
+  cons_html = ""
+  for item in ai_data.get("cons", []):
+    pct = min(max(int(item.get("pct", 0)), 0), 100)
+    cons_html += f"""
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                <span>{item.get('topic')}</span>
+                <span style="color: #dc2626;">{pct}%</span>
+            </div>
+            <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                <div style="background-color: #ef4444; height: 100%; width: {pct}%;"></div>
+            </div>
+        </div>
+        """
+
+  html_template = f"""
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            @page {{ size: A4; margin: 15mm; background-color: #f8fafc; }}
+            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10pt; line-height: 1.5; }}
+            .header {{ background-color: #0f172a; color: #ffffff; margin: -15mm -15mm 20px -15mm; padding: 25px 20px; text-align: center; }}
+            .header h1 {{ margin: 0 0 6px 0; font-size: 18pt; font-weight: 700; }}
+            .header p {{ margin: 0; font-size: 10pt; color: #94a3b8; }}
+            .meta-grid {{ width: 100%; margin-bottom: 20px; border-collapse: collapse; }}
+            .meta-card {{ background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; text-align: center; }}
+            .meta-title {{ font-size: 8.5pt; color: #64748b; font-weight: 600; margin-bottom: 4px; }}
+            .meta-value {{ font-size: 13pt; font-weight: 700; color: #0f172a; }}
+            .section-title {{ font-size: 12pt; font-weight: 700; color: #0f172a; border-left: 4px solid #3b82f6; padding-left: 8px; margin: 20px 0 12px 0; }}
+            .content-table {{ width: 100%; border-collapse: separate; border-spacing: 10px 0; }}
+            .column {{ width: 50%; vertical-align: top; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }}
+            .col-title-pros {{ color: #166534; font-size: 11pt; font-weight: 700; border-bottom: 2px solid #bbf7d0; padding-bottom: 6px; margin-bottom: 12px; }}
+            .col-title-cons {{ color: #991b1b; font-size: 11pt; font-weight: 700; border-bottom: 2px solid #fecaca; padding-bottom: 6px; margin-bottom: 12px; }}
+            .footer {{ margin-top: 25px; text-align: center; font-size: 8pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>รายงานสรุปผลการวิเคราะห์รีวิวสินค้า (Shopee AI)</h1>
+            <p>รายงานภาพรวมความรู้สึกและจุดเด่น-จุดด้อยสินค้า</p>
+        </div>
+        <table class="meta-grid">
+            <tr>
+                <td style="width: 25%; padding: 0 4px;"><div class="meta-card"><div class="meta-title">จำนวนรีวิวทั้งหมด</div><div class="meta-value">{total_reviews:,}</div></div></td>
+                <td style="width: 25%; padding: 0 4px;"><div class="meta-card"><div class="meta-title">รีวิวดี (4-5 ดาว)</div><div class="meta-value" style="color: #16a34a;">{pos_pct:.1f}%</div></div></td>
+                <td style="width: 25%; padding: 0 4px;"><div class="meta-card"><div class="meta-title">รีวิวกลางๆ (3 ดาว)</div><div class="meta-value" style="color: #d97706;">{neu_pct:.1f}%</div></div></td>
+                <td style="width: 25%; padding: 0 4px;"><div class="meta-card"><div class="meta-title">รีวิวแย่ (1-2 ดาว)</div><div class="meta-value" style="color: #dc2626;">{neg_pct:.1f}%</div></div></td>
+            </tr>
+        </table>
+        <div class="section-title">💡 ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
+        <table class="content-table">
+            <tr>
+                <td class="column"><div class="col-title-pros">🟢 จุดเด่นที่ลูกค้าประทับใจ (Pros)</div>{pros_html}</td>
+                <td class="column"><div class="col-title-cons">🔴 ข้อเสีย / จุดที่ควรปรับปรุง (Cons)</div>{cons_html}</td>
+            </tr>
+        </table>
+        <div class="footer">สร้างรายงานอัตโนมัติด้วย Shopee Sentiment Analyzer AI</div>
+    </body>
+    </html>
+    """
+  return HTML(string=html_template).write_pdf()
 
 
 # --- 4. ส่วนแสดงผล UI Streamlit ---
@@ -277,6 +366,28 @@ if uploaded_file is not None:
                 f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
             )
             st.progress(pct / 100.0)
+
+        # 📄 ปุ่มดาวน์โหลดรายงาน PDF
+        total_cnt = len(std_df)
+        pos_p = (pos_count / total_cnt) * 100 if total_cnt > 0 else 0
+        neu_p = (neu_count / total_cnt) * 100 if total_cnt > 0 else 0
+        neg_p = (neg_count / total_cnt) * 100 if total_cnt > 0 else 0
+
+        pdf_bytes = generate_pdf_report(
+            total_reviews=total_cnt,
+            pos_pct=pos_p,
+            neu_pct=neu_p,
+            neg_pct=neg_p,
+            ai_data=ai_data,
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="📄 ดาวน์โหลดรายงานสรุป AI (PDF)",
+            data=pdf_bytes,
+            file_name="shopee_sentiment_summary.pdf",
+            mime="application/pdf",
+        )
     else:
       st.info("ไม่พบข้อความรีวิวเพียงพอสำหรับวิเคราะห์ Pros & Cons")
   else:
