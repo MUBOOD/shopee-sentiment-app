@@ -200,11 +200,11 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     for attempt in range(3):
       try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",  # เปลี่ยนจาก gemini-1.5-flash เป็น gemini-2.5-flash
+            model="gemini-2.5-flash-001",
             contents=prompt,
             config=types.GenerateContentConfig(
-        response_mime_type="application/json",
-    ),
+            response_mime_type="application/json",
+        ),
     )
         return json.loads(response.text)
       except Exception as e:
