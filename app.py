@@ -2,13 +2,16 @@ import json
 import os
 import altair as alt
 import matplotlib.pyplot as plt
+import pandas as pd
 import plotly.express as px
+import streamlit as st
 from google import genai
 from google.genai import types
-import pandas as pd
-import streamlit as st
 from weasyprint import HTML
 from wordcloud import WordCloud
+
+# หากต้องการตัดคำภาษาไทยใน Word Cloud ให้แม่นยำขึ้น แนะนำให้ import pythainlp
+# from pythainlp.tokenize import word_tokenize
 
 # ตั้งค่าหน้าเว็บ
 st.set_page_config(page_title="Shopee Sentiment Analyzer AI", layout="wide")
@@ -33,12 +36,12 @@ has_secret_key = (
 )
 
 if api_key_input:
-  api_key = api_key_input
+    api_key = api_key_input
 elif has_secret_key:
-  api_key = st.secrets["GEMINI_API_KEY"]
-  st.sidebar.caption("🟢 เปิดใช้งานระบบ AI อัตโนมัติเรียบร้อย")
+    api_key = st.secrets["GEMINI_API_KEY"]
+    st.sidebar.caption("🟢 เปิดใช้งานระบบ AI อัตโนมัติเรียบร้อย")
 else:
-  api_key = None
+    api_key = None
 
 # --- 0. แม็บชื่อคอลัมน์ รองรับทั้งภาษาไทย/อังกฤษ ---
 COLUMN_MAP = {
@@ -51,35 +54,35 @@ COLUMN_MAP = {
 
 
 def find_column(df, candidates):
-  """หาว่าคอลัมน์ไหนใน df ตรงกับชื่อที่เป็นไปได้ คืนชื่อคอลัมน์แรกที่เจอ"""
-  for c in candidates:
-    if c in df.columns:
-      return c
-  return None
+    """หาว่าคอลัมน์ไหนใน df ตรงกับชื่อที่เป็นไปได้ คืนชื่อคอลัมน์แรกที่เจอ"""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
 
 
 # --- 1. ฟังก์ชันจัดการข้อมูล (Data Normalization) ---
 @st.cache_data
 def process_shopee_dataset(df: pd.DataFrame) -> pd.DataFrame:
-  clean_df = pd.DataFrame()
+    clean_df = pd.DataFrame()
 
-  for target_col, candidates in COLUMN_MAP.items():
-    src_col = find_column(df, candidates)
-    clean_df[target_col] = df[src_col] if src_col else "N/A"
+    for target_col, candidates in COLUMN_MAP.items():
+        src_col = find_column(df, candidates)
+        clean_df[target_col] = df[src_col] if src_col else "N/A"
 
-  # แปลง Rating เป็นตัวเลข
-  clean_df["rating"] = pd.to_numeric(clean_df["rating"], errors="coerce")
+    # แปลง Rating เป็นตัวเลข
+    clean_df["rating"] = pd.to_numeric(clean_df["rating"], errors="coerce")
 
-  # จัดการข้อความรีวิว
-  clean_df["review_text"] = clean_df["review_text"].apply(
-      lambda x: (
-          "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
-          if pd.isna(x) or str(x).strip() in ["", "N/A"]
-          else str(x).strip()
-      )
-  )
+    # จัดการข้อความรีวิว
+    clean_df["review_text"] = clean_df["review_text"].apply(
+        lambda x: (
+            "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
+            if pd.isna(x) or str(x).strip() in ["", "N/A"]
+            else str(x).strip()
+        )
+    )
 
-  return clean_df
+    return clean_df
 
 
 # --- 2. ฟังก์ชันประเมิน Sentiment ---
@@ -138,42 +141,42 @@ POS_WORDS = [
 
 
 def evaluate_sentiment(row) -> str:
-  rating = row["rating"]
-  text = row["review_text"]
+    rating = row["rating"]
+    text = row["review_text"]
 
-  if pd.notna(rating):
-    r = round(rating)
-    if r <= 2:
-      return "Negative (แย่ / ด้านลบ)"
-    elif r == 3:
-      return "Neutral (ปานกลาง / เป็นกลาง)"
-    else:
-      return "Positive (ดี / ด้านบวก)"
+    if pd.notna(rating):
+        r = round(rating)
+        if r <= 2:
+            return "Negative (แย่ / ด้านลบ)"
+        elif r == 3:
+            return "Neutral (ปานกลาง / เป็นกลาง)"
+        else:
+            return "Positive (ดี / ด้านบวก)"
 
-  if text != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)":
-    pos_score = sum(1 for w in POS_WORDS if w in text)
-    neg_score = sum(1 for w in NEG_WORDS if w in text)
+    if text != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)":
+        pos_score = sum(1 for w in POS_WORDS if w in text)
+        neg_score = sum(1 for w in NEG_WORDS if w in text)
 
-    if neg_score > pos_score:
-      return "Negative (แย่ / ด้านลบ)"
-    elif pos_score > neg_score:
-      return "Positive (ดี / ด้านบวก)"
+        if neg_score > pos_score:
+            return "Negative (แย่ / ด้านลบ)"
+        elif pos_score > neg_score:
+            return "Positive (ดี / ด้านบวก)"
 
-  return "Neutral (ปานกลาง / เป็นกลาง)"
+    return "Neutral (ปานกลาง / เป็นกลาง)"
 
 
-# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ใส่ Cache ป้องกันยิงซ้ำ) ---
-GEMINI_MODEL = "gemini-flash-latest"  # อัปเดตจาก gemini-2.0-flash-lite ที่ถูกปิดใช้งานแล้ว
+# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons ---
+GEMINI_MODEL = "gemini-flash-latest"
 
 
 @st.cache_data(show_spinner=False)
 def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
-  if not review_texts:
-    return None
+    if not review_texts:
+        return None
 
-  sample_text = "\n".join([f"- {txt}" for txt in review_texts[:80]])
+    sample_text = "\n".join([f"- {txt}" for txt in review_texts[:80]])
 
-  prompt = f"""
+    prompt = f"""
     คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์รีวิวสินค้า 
     จากข้อความรีวิวต่อไปนี้ จงสรุปจุดเด่น (Pros) 3 ข้อ และจุดด้อย (Cons) 3 ข้อ ที่ผู้ซื้อพูดถึงมากที่สุด 
     พร้อมประเมินสัดส่วนเป็นเปอร์เซ็นต์ (%) ของคนที่พูดถึงเรื่องนั้นๆ 
@@ -196,22 +199,22 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
     }}
     """
 
-  try:
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-        ),
-    )
-    return json.loads(response.text)
-  except Exception as e:
-    st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
-    return None
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Gemini AI: {e}")
+        return None
 
 
-# --- ฟอนต์ไทยสำหรับ PDF (ฝังไฟล์ในโปรเจกต์เอง ไม่พึ่งฟอนต์ของ server) ---
+# --- ฟอนต์ไทยสำหรับ PDF ---
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_REGULAR_PATH = os.path.join(_APP_DIR, "fonts", "Waree.ttf")
 FONT_BOLD_PATH = os.path.join(_APP_DIR, "fonts", "Waree-Bold.ttf")
@@ -225,40 +228,40 @@ def generate_pdf_report(
     neg_pct: float,
     ai_data: dict = None,
 ) -> bytes:
-  ai_available = bool(ai_data and (ai_data.get("pros") or ai_data.get("cons")))
+    ai_available = bool(ai_data and (ai_data.get("pros") or ai_data.get("cons")))
 
-  if ai_available:
-    pros_html = ""
-    for item in ai_data.get("pros", []):
-      pct = min(max(int(item.get("pct", 0)), 0), 100)
-      pros_html += f"""
-          <div style="margin-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
-                  <span>{item.get('topic')}</span>
-                  <span style="color: #16a34a;">{pct}%</span>
-              </div>
-              <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
-                  <div style="background-color: #22c55e; height: 100%; width: {pct}%;"></div>
-              </div>
-          </div>
-          """
+    if ai_available:
+        pros_html = ""
+        for item in ai_data.get("pros", []):
+            pct = min(max(int(item.get("pct", 0)), 0), 100)
+            pros_html += f"""
+            <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                    <span>{item.get('topic')}</span>
+                    <span style="color: #16a34a;">{pct}%</span>
+                </div>
+                <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div style="background-color: #22c55e; height: 100%; width: {pct}%;"></div>
+                </div>
+            </div>
+            """
 
-    cons_html = ""
-    for item in ai_data.get("cons", []):
-      pct = min(max(int(item.get("pct", 0)), 0), 100)
-      cons_html += f"""
-          <div style="margin-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
-                  <span>{item.get('topic')}</span>
-                  <span style="color: #dc2626;">{pct}%</span>
-              </div>
-              <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
-                  <div style="background-color: #ef4444; height: 100%; width: {pct}%;"></div>
-              </div>
-          </div>
-          """
+        cons_html = ""
+        for item in ai_data.get("cons", []):
+            pct = min(max(int(item.get("pct", 0)), 0), 100)
+            cons_html += f"""
+            <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 600; color: #334155; margin-bottom: 3px;">
+                    <span>{item.get('topic')}</span>
+                    <span style="color: #dc2626;">{pct}%</span>
+                </div>
+                <div style="background-color: #f1f5f9; height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div style="background-color: #ef4444; height: 100%; width: {pct}%;"></div>
+                </div>
+            </div>
+            """
 
-    ai_section_html = f"""
+        ai_section_html = f"""
         <div class="section-title">ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
         <table class="content-table">
             <tr>
@@ -267,8 +270,8 @@ def generate_pdf_report(
             </tr>
         </table>
         """
-  else:
-    ai_section_html = """
+    else:
+        ai_section_html = """
         <div class="section-title">ผลการวิเคราะห์ Pros & Cons (วิเคราะห์ด้วย AI)</div>
         <div style="background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; text-align: center; color: #9a3412; font-size: 10pt;">
             ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้ (เช่น เชื่อมต่อ Gemini AI ไม่สำเร็จ หรือยังไม่ได้ใส่ API Key)<br>
@@ -276,7 +279,7 @@ def generate_pdf_report(
         </div>
         """
 
-  html_template = f"""
+    html_template = f"""
     <!DOCTYPE html>
     <html lang="th">
     <head>
@@ -327,7 +330,7 @@ def generate_pdf_report(
     </body>
     </html>
     """
-  return HTML(string=html_template).write_pdf()
+    return HTML(string=html_template).write_pdf()
 
 
 # --- 4. ส่วนแสดงผล UI Streamlit ---
@@ -336,252 +339,254 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-  raw_df = None
-  for enc in ["utf-8-sig", "utf-8", "cp874", "tis-620"]:
-    try:
-      uploaded_file.seek(0)
-      raw_df = pd.read_csv(uploaded_file, encoding=enc)
-      break
-    except (UnicodeDecodeError, pd.errors.ParserError):
-      continue
+    raw_df = None
+    for enc in ["utf-8-sig", "utf-8", "cp874", "tis-620"]:
+        try:
+            uploaded_file.seek(0)
+            raw_df = pd.read_csv(uploaded_file, encoding=enc)
+            break
+        except (UnicodeDecodeError, pd.errors.ParserError):
+            continue
 
-  if raw_df is None:
-    st.error("ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็นไฟล์ CSV ที่ถูกต้อง")
-    st.stop()
+    if raw_df is None:
+        st.error("ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบว่าเป็นไฟล์ CSV ที่ถูกต้อง")
+        st.stop()
 
-  if raw_df.empty:
-    st.warning("ไฟล์ที่อัปโหลดไม่มีข้อมูล")
-    st.stop()
+    if raw_df.empty:
+        st.warning("ไฟล์ที่อัปโหลดไม่มีข้อมูล")
+        st.stop()
 
-  st.success(f"อัปโหลดไฟล์สำเร็จแล้ว! พบข้อมูล {len(raw_df)} แถว")
+    st.success(f"อัปโหลดไฟล์สำเร็จแล้ว! พบข้อมูล {len(raw_df)} แถว")
 
-  with st.spinner("กำลังประมวลผลข้อมูล..."):
-    std_df = process_shopee_dataset(raw_df)
-    std_df["sentiment_result"] = std_df.apply(evaluate_sentiment, axis=1)
+    with st.spinner("กำลังประมวลผลข้อมูล..."):
+        std_df = process_shopee_dataset(raw_df)
+        std_df["sentiment_result"] = std_df.apply(evaluate_sentiment, axis=1)
 
-  # 📊 Dashboard Metrics
-  col1, col2, col3 = st.columns(3)
-  pos_count = (std_df["sentiment_result"] == "Positive (ดี / ด้านบวก)").sum()
-  neg_count = (std_df["sentiment_result"] == "Negative (แย่ / ด้านลบ)").sum()
-  neu_count = (
-      std_df["sentiment_result"] == "Neutral (ปานกลาง / เป็นกลาง)"
-  ).sum()
+    # 📊 Dashboard Metrics
+    col1, col2, col3 = st.columns(3)
+    pos_count = (std_df["sentiment_result"] == "Positive (ดี / ด้านบวก)").sum()
+    neg_count = (std_df["sentiment_result"] == "Negative (แย่ / ด้านลบ)").sum()
+    neu_count = (
+        std_df["sentiment_result"] == "Neutral (ปานกลาง / เป็นกลาง)"
+    ).sum()
 
-  col1.metric("รีวิวดี (4-5 ดาว) 😀", f"{pos_count} รายการ")
-  col2.metric("รีวิวแย่ (1-2 ดาว) 😡", f"{neg_count} รายการ")
-  col3.metric("รีวิวกลางๆ (3 ดาว) 😐", f"{neu_count} รายการ")
+    col1.metric("รีวิวดี (4-5 ดาว) 😀", f"{pos_count} รายการ")
+    col2.metric("รีวิวแย่ (1-2 ดาว) 😡", f"{neg_count} รายการ")
+    col3.metric("รีวิวกลางๆ (3 ดาว) 😐", f"{neu_count} รายการ")
 
-  # 💡 ส่วนแสดงผล AI Pros & Cons Summary
-  st.markdown("---")
-  st.subheader("💡 สรุปจุดดี-จุดด้อย (วิเคราะห์ด้วย AI)")
+    # 💡 ส่วนแสดงผล AI Pros & Cons Summary
+    st.markdown("---")
+    st.subheader("💡 สรุปจุดดี-จุดด้อย (วิเคราะห์ด้วย AI)")
 
-  if api_key:
-    text_reviews = std_df[
-        std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
-    ]["review_text"].tolist()
+    ai_data = None
+    if api_key:
+        text_reviews = std_df[
+            std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
+        ]["review_text"].tolist()
 
-    if text_reviews:
-      with st.spinner("🤖 AI กำลังประมวลผล..."):
-        ai_data = analyze_pros_cons_with_ai(text_reviews, api_key)
+        if text_reviews:
+            with st.spinner("🤖 AI กำลังประมวลผล..."):
+                ai_data = analyze_pros_cons_with_ai(text_reviews, api_key)
 
-      if ai_data:
-        col_pros, col_cons = st.columns(2)
+            if ai_data:
+                col_pros, col_cons = st.columns(2)
 
-        with col_pros:
-          st.markdown("#### 🟢 ข้อดีที่คนพูดถึงเยอะที่สุด")
-          for item in ai_data.get("pros", []):
-            pct = min(max(int(item.get("pct", 0)), 0), 100)
-            st.container(border=True).markdown(
-                f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
+                with col_pros:
+                    st.markdown("#### 🟢 ข้อดีที่คนพูดถึงเยอะที่สุด")
+                    for item in ai_data.get("pros", []):
+                        pct = min(max(int(item.get("pct", 0)), 0), 100)
+                        st.container(border=True).markdown(
+                            f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
+                        )
+                        st.progress(pct / 100.0)
+
+                with col_cons:
+                    st.markdown("#### 🔴 ข้อเสียที่ต้องระวัง / จุดควรปรับปรุง")
+                    for item in ai_data.get("cons", []):
+                        pct = min(max(int(item.get("pct", 0)), 0), 100)
+                        st.container(border=True).markdown(
+                            f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
+                        )
+                        st.progress(pct / 100.0)
+            else:
+                st.warning(
+                    "⚠️ ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้"
+                    " แต่ยังดาวน์โหลดรายงาน PDF (ภาพรวม Sentiment) ได้ตามปกติ"
+                )
+
+            # 📄 ปุ่มดาวน์โหลดรายงาน PDF
+            total_cnt = len(std_df)
+            pos_p = (pos_count / total_cnt) * 100 if total_cnt > 0 else 0
+            neu_p = (neu_count / total_cnt) * 100 if total_cnt > 0 else 0
+            neg_p = (neg_count / total_cnt) * 100 if total_cnt > 0 else 0
+
+            pdf_bytes = generate_pdf_report(
+                total_reviews=total_cnt,
+                pos_pct=pos_p,
+                neu_pct=neu_p,
+                neg_pct=neg_p,
+                ai_data=ai_data,
             )
-            st.progress(pct / 100.0)
 
-        with col_cons:
-          st.markdown("#### 🔴 ข้อเสียที่ต้องระวัง / จุดควรปรับปรุง")
-          for item in ai_data.get("cons", []):
-            pct = min(max(int(item.get("pct", 0)), 0), 100)
-            st.container(border=True).markdown(
-                f"**{item.get('topic')}**\n*ผู้พูดถึง: {pct}%*"
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.download_button(
+                label="📄 ดาวน์โหลดรายงานสรุป (PDF)",
+                data=pdf_bytes,
+                file_name="shopee_sentiment_summary.pdf",
+                mime="application/pdf",
             )
-            st.progress(pct / 100.0)
-      else:
-        st.warning(
-            "⚠️ ไม่สามารถวิเคราะห์จุดเด่น-จุดด้อยด้วย AI ได้ในขณะนี้"
-            " แต่ยังดาวน์โหลดรายงาน PDF (ภาพรวม Sentiment) ได้ตามปกติ"
+        else:
+            st.info("ไม่พบข้อความรีวิวเพียงพอสำหรับวิเคราะห์ Pros & Cons")
+    else:
+        st.info(
+            "👉 กรุณาใส่ Gemini API Key ที่ Sidebar ด้านซ้าย"
+            " เพื่อเปิดการใช้งานส่วนสรุป AI"
         )
 
-      # 📄 ปุ่มดาวน์โหลดรายงาน PDF (แสดงเสมอ ไม่ว่า AI จะสำเร็จหรือไม่)
-      total_cnt = len(std_df)
-      pos_p = (pos_count / total_cnt) * 100 if total_cnt > 0 else 0
-      neu_p = (neu_count / total_cnt) * 100 if total_cnt > 0 else 0
-      neg_p = (neg_count / total_cnt) * 100 if total_cnt > 0 else 0
+    st.markdown("---")
 
-      pdf_bytes = generate_pdf_report(
-          total_reviews=total_cnt,
-          pos_pct=pos_p,
-          neu_pct=neu_p,
-          neg_pct=neg_p,
-          ai_data=ai_data,
-      )
+    # 📈 กราฟ สรุปสัดส่วน Sentiment
+    st.subheader("📊 กราฟสรุปสัดส่วน Sentiment")
+    st.caption("💡 คลิกที่แท่งกราฟเพื่อกรองตารางด้านล่างให้เหลือเฉพาะกลุ่มนั้น")
 
-      st.markdown("<br>", unsafe_allow_html=True)
-      st.download_button(
-          label="📄 ดาวน์โหลดรายงานสรุป (PDF)",
-          data=pdf_bytes,
-          file_name="shopee_sentiment_summary.pdf",
-          mime="application/pdf",
-      )
-    else:
-      st.info("ไม่พบข้อความรีวิวเพียงพอสำหรับวิเคราะห์ Pros & Cons")
-  else:
-    st.info(
-        "👉 กรุณาใส่ Gemini API Key ที่ Sidebar ด้านซ้าย"
-        " เพื่อเปิดการใช้งานส่วนสรุป AI"
-    )
+    sentiment_counts = std_df["sentiment_result"].value_counts().reset_index()
+    sentiment_counts.columns = ["sentiment_result", "count"]
 
-  st.markdown("---")
-
-  # 📈 กราฟ สรุปสัดส่วน Sentiment
-  st.subheader("📊 กราฟสรุปสัดส่วน Sentiment")
-  st.caption("💡 คลิกที่แท่งกราฟเพื่อกรองตารางด้านล่างให้เหลือเฉพาะกลุ่มนั้น")
-
-  sentiment_counts = std_df["sentiment_result"].value_counts().reset_index()
-  sentiment_counts.columns = ["sentiment_result", "count"]
-
-  sentiment_order = [
-      "Negative (แย่ / ด้านลบ)",
-      "Neutral (ปานกลาง / เป็นกลาง)",
-      "Positive (ดี / ด้านบวก)",
-  ]
-  color_map = {
-      "Negative (แย่ / ด้านลบ)": "#e74c3c",
-      "Neutral (ปานกลาง / เป็นกลาง)": "#f1c40f",
-      "Positive (ดี / ด้านบวก)": "#2ecc71",
-  }
-
-  click_selection = alt.selection_point(
-      name="select", fields=["sentiment_result"]
-  )
-
-  bars = (
-      alt.Chart(sentiment_counts)
-      .mark_bar()
-      .encode(
-          x=alt.X(
-              "sentiment_result:N",
-              title="Sentiment",
-              sort=sentiment_order,
-              axis=alt.Axis(labelAngle=0),
-          ),
-          y=alt.Y("count:Q", title="จำนวนรีวิว"),
-          color=alt.Color(
-              "sentiment_result:N",
-              scale=alt.Scale(
-                  domain=list(color_map.keys()), range=list(color_map.values())
-              ),
-              legend=None,
-          ),
-          opacity=alt.condition(
-              click_selection, alt.value(1.0), alt.value(0.4)
-          ),
-          tooltip=[
-              alt.Tooltip("sentiment_result:N", title="Sentiment"),
-              alt.Tooltip("count:Q", title="จำนวน"),
-          ],
-      )
-      .add_params(click_selection)
-  )
-
-  # ป้ายตัวเลขจำนวนรีวิวบนยอดแท่ง
-  labels = bars.mark_text(
-      align="center", baseline="bottom", dy=-4, fontSize=13, fontWeight="bold"
-  ).encode(text="count:Q")
-
-  chart = (bars + labels).properties(height=350)
-
-  event = st.altair_chart(
-      chart, use_container_width=True, on_select="rerun", key="sentiment_chart"
-  )
-
-  selected_sentiments = []
-  if event and event.get("selection") and event["selection"].get("select"):
-    selected_sentiments = [
-        p["sentiment_result"] for p in event["selection"]["select"]
+    sentiment_order = [
+        "Negative (แย่ / ด้านลบ)",
+        "Neutral (ปานกลาง / เป็นกลาง)",
+        "Positive (ดี / ด้านบวก)",
     ]
+    color_map = {
+        "Negative (แย่ / ด้านลบ)": "#e74c3c",
+        "Neutral (ปานกลาง / เป็นกลาง)": "#f1c40f",
+        "Positive (ดี / ด้านบวก)": "#2ecc71",
+    }
 
-  if selected_sentiments:
-    filtered_df = std_df[std_df["sentiment_result"].isin(selected_sentiments)]
-    st.info(
-        f"🔍 กำลังกรองเฉพาะ: **{', '.join(selected_sentiments)}**"
-        f" ({len(filtered_df)} รายการ) — คลิกแท่งเดิมอีกครั้งเพื่อยกเลิกกรอง"
-    )
-  else:
-    filtered_df = std_df
-
-  # 📈 กราฟแนวโน้ม Sentiment ตามช่วงเวลา
-  trend_df = std_df.copy()
-  trend_df["review_date_parsed"] = pd.to_datetime(
-      trend_df["review_date"], errors="coerce"
-  )
-  trend_df = trend_df.dropna(subset=["review_date_parsed"])
-
-  if not trend_df.empty:
-    st.markdown("---")
-    st.subheader("📈 แนวโน้ม Sentiment ตามช่วงเวลา")
-
-    df_trend = (
-        trend_df.groupby(["review_date_parsed", "sentiment_result"])
-        .size()
-        .reset_index(name="count")
-        .sort_values("review_date_parsed")
+    click_selection = alt.selection_point(
+        name="select", fields=["sentiment_result"]
     )
 
-    fig_line = px.line(
-        df_trend,
-        x="review_date_parsed",
-        y="count",
-        color="sentiment_result",
-        markers=True,
-        color_discrete_map=color_map,
-        labels={
-            "review_date_parsed": "วันที่รีวิว",
-            "count": "จำนวนรีวิว",
-            "sentiment_result": "Sentiment",
-        },
+    bars = (
+        alt.Chart(sentiment_counts)
+        .mark_bar()
+        .encode(
+            x=alt.X(
+                "sentiment_result:N",
+                title="Sentiment",
+                sort=sentiment_order,
+                axis=alt.Axis(labelAngle=0),
+            ),
+            y=alt.Y("count:Q", title="จำนวนรีวิว"),
+            color=alt.Color(
+                "sentiment_result:N",
+                scale=alt.Scale(
+                    domain=list(color_map.keys()), range=list(color_map.values())
+                ),
+                legend=None,
+            ),
+            opacity=alt.condition(
+                click_selection, alt.value(1.0), alt.value(0.4)
+            ),
+            tooltip=[
+                alt.Tooltip("sentiment_result:N", title="Sentiment"),
+                alt.Tooltip("count:Q", title="จำนวน"),
+            ],
+        )
+        .add_params(click_selection)
     )
-    fig_line.update_layout(legend_title_text="")
-    st.plotly_chart(fig_line, use_container_width=True)
 
-  # 📊 กราฟเปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)
-  variation_values = std_df["variation"].dropna().unique()
-  has_variation_data = len(variation_values) > 1 or (
-      len(variation_values) == 1 and variation_values[0] != "N/A"
-  )
+    labels = bars.mark_text(
+        align="center", baseline="bottom", dy=-4, fontSize=13, fontWeight="bold"
+    ).encode(text="count:Q")
 
-  if has_variation_data:
-    st.markdown("---")
-    st.subheader("📊 เปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)")
+    chart = (bars + labels).properties(height=350)
 
-    fig_var = px.histogram(
-    std_df,
-    x="variation",
-    color="sentiment_result",
-    barmode="group",
-    color_discrete_map=color_map,
-    text_auto=True,  # 👈 แสดงตัวเลขจำนวนบนแท่งกราฟอัตโนมัติ
-    labels={
-        "variation": "รุ่น/สีสินค้า",
-        "count": "จำนวนรีวิว",
-        "sentiment_result": "Sentiment",
-    },
-)
-fig_var.update_traces(textposition="outside")  # จัดวางตัวเลขให้อยู่บนยอดแท่ง
-fig_var.update_layout(
-    yaxis_title="จำนวนรีวิว", xaxis_title="รุ่น/สีสินค้า", legend_title_text=""
-)
-st.plotly_chart(fig_var, use_container_width=True)
-  # ☁️ Word Cloud คำยอดฮิตในรีวิว
-  # ☁️ Word Cloud คำยอดฮิตในรีวิว
+    event = st.altair_chart(
+        chart, use_container_width=True, on_select="rerun", key="sentiment_chart"
+    )
+
+    selected_sentiments = []
+    if event and event.get("selection") and event["selection"].get("select"):
+        selected_sentiments = [
+            p["sentiment_result"] for p in event["selection"]["select"]
+        ]
+
+    if selected_sentiments:
+        filtered_df = std_df[std_df["sentiment_result"].isin(selected_sentiments)]
+        st.info(
+            f"🔍 กำลังกรองเฉพาะ: **{', '.join(selected_sentiments)}**"
+            f" ({len(filtered_df)} รายการ) — คลิกแท่งเดิมอีกครั้งเพื่อยกเลิกกรอง"
+        )
+    else:
+        filtered_df = std_df
+
+    # 📈 กราฟแนวโน้ม Sentiment ตามช่วงเวลา
+    trend_df = std_df.copy()
+    trend_df["review_date_parsed"] = pd.to_datetime(
+        trend_df["review_date"], errors="coerce"
+    )
+    trend_df = trend_df.dropna(subset=["review_date_parsed"])
+
+    if not trend_df.empty:
+        st.markdown("---")
+        st.subheader("📈 แนวโน้ม Sentiment ตามช่วงเวลา")
+
+        df_trend = (
+            trend_df.groupby(["review_date_parsed", "sentiment_result"])
+            .size()
+            .reset_index(name="count")
+            .sort_values("review_date_parsed")
+        )
+
+        fig_line = px.line(
+            df_trend,
+            x="review_date_parsed",
+            y="count",
+            color="sentiment_result",
+            markers=True,
+            color_discrete_map=color_map,
+            labels={
+                "review_date_parsed": "วันที่รีวิว",
+                "count": "จำนวนรีวิว",
+                "sentiment_result": "Sentiment",
+            },
+        )
+        fig_line.update_layout(legend_title_text="")
+        st.plotly_chart(fig_line, use_container_width=True)
+
+    # 📊 กราฟเปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)
+    variation_values = std_df["variation"].dropna().unique()
+    has_variation_data = len(variation_values) > 1 or (
+        len(variation_values) == 1 and variation_values[0] != "N/A"
+    )
+
+    if has_variation_data:
+        st.markdown("---")
+        st.subheader("📊 เปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)")
+
+        fig_var = px.histogram(
+            std_df,
+            x="variation",
+            color="sentiment_result",
+            barmode="group",
+            color_discrete_map=color_map,
+            text_auto=True,
+            labels={
+                "variation": "รุ่น/สีสินค้า",
+                "count": "จำนวนรีวิว",
+                "sentiment_result": "Sentiment",
+            },
+        )
+        fig_var.update_traces(textposition="outside")
+        fig_var.update_layout(
+            yaxis_title="จำนวนรีวิว",
+            xaxis_title="รุ่น/สีสินค้า",
+            legend_title_text="",
+        )
+        st.plotly_chart(fig_var, use_container_width=True)
+
+    # ☁️ Word Cloud คำยอดฮิตในรีวิว
     review_text_pool = std_df[
         std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
     ]
@@ -623,72 +628,72 @@ st.plotly_chart(fig_var, use_container_width=True)
         render_wordcloud(wc_col1, pos_texts, "🟢 รีวิวด้านบวก", "Greens")
         render_wordcloud(wc_col2, neg_texts, "🔴 รีวิวด้านลบ", "Reds")
 
-  st.markdown("---")
+    st.markdown("---")
 
-  # 🔎 ตัวกรองเพิ่มเติมสำหรับตาราง
-  st.subheader("🔎 ตัวกรองเพิ่มเติม")
-  filter_col1, filter_col2 = st.columns(2)
+    # 🔎 ตัวกรองเพิ่มเติมสำหรับตาราง
+    st.subheader("🔎 ตัวกรองเพิ่มเติม")
+    filter_col1, filter_col2 = st.columns(2)
 
-  with filter_col1:
-    sentiment_filter_options = list(std_df["sentiment_result"].unique())
-    selected_sentiment_filter = st.multiselect(
-        "กรองตาม Sentiment:",
-        options=sentiment_filter_options,
-        default=sentiment_filter_options,
+    with filter_col1:
+        sentiment_filter_options = list(std_df["sentiment_result"].unique())
+        selected_sentiment_filter = st.multiselect(
+            "กรองตาม Sentiment:",
+            options=sentiment_filter_options,
+            default=sentiment_filter_options,
+        )
+
+    with filter_col2:
+        variation_filter_options = list(std_df["variation"].unique())
+        selected_variation_filter = st.multiselect(
+            "กรองตามรุ่น/สี:",
+            options=variation_filter_options,
+            default=variation_filter_options,
+        )
+
+    filtered_df = filtered_df[
+        filtered_df["sentiment_result"].isin(selected_sentiment_filter)
+        & filtered_df["variation"].isin(selected_variation_filter)
+    ]
+
+    # 📋 ตารางแสดงผล
+    st.subheader("📋 ตารางแสดงผลลัพธ์การวิเคราะห์")
+    st.dataframe(
+        filtered_df[[
+            "review_date",
+            "product_name",
+            "variation",
+            "rating",
+            "review_text",
+            "sentiment_result",
+        ]],
+        column_config={
+            "review_date": st.column_config.Column("วันที่"),
+            "product_name": st.column_config.Column("ชื่อสินค้า"),
+            "variation": st.column_config.Column("รุ่น/สี"),
+            "rating": st.column_config.NumberColumn("คะแนน", format="%d ⭐"),
+            "review_text": st.column_config.Column(
+                "ข้อความรีวิว", width="large"
+            ),
+            "sentiment_result": st.column_config.Column("ผลวิเคราะห์"),
+        },
+        hide_index=True,
+        use_container_width=True,
     )
 
-  with filter_col2:
-    variation_filter_options = list(std_df["variation"].unique())
-    selected_variation_filter = st.multiselect(
-        "กรองตามรุ่น/สี:",
-        options=variation_filter_options,
-        default=variation_filter_options,
+    # 📥 ดาวน์โหลด CSV
+    csv = filtered_df.to_csv(index=False, encoding="utf-8-sig").encode(
+        "utf-8-sig"
     )
-
-  filtered_df = filtered_df[
-      filtered_df["sentiment_result"].isin(selected_sentiment_filter)
-      & filtered_df["variation"].isin(selected_variation_filter)
-  ]
-
-  # 📋 ตารางแสดงผล
-  st.subheader("📋 ตารางแสดงผลลัพธ์การวิเคราะห์")
-  st.dataframe(
-      filtered_df[[
-          "review_date",
-          "product_name",
-          "variation",
-          "rating",
-          "review_text",
-          "sentiment_result",
-      ]],
-      column_config={
-          "review_date": st.column_config.Column("วันที่"),
-          "product_name": st.column_config.Column("ชื่อสินค้า"),
-          "variation": st.column_config.Column("รุ่น/สี"),
-          "rating": st.column_config.NumberColumn("คะแนน", format="%d ⭐"),
-          "review_text": st.column_config.Column(
-              "ข้อความรีวิว", width="large"
-          ),
-          "sentiment_result": st.column_config.Column("ผลวิเคราะห์"),
-      },
-      hide_index=True,
-      use_container_width=True,
-  )
-
-  # 📥 ดาวน์โหลด CSV
-  csv = filtered_df.to_csv(index=False, encoding="utf-8-sig").encode(
-      "utf-8-sig"
-  )
-  download_label = (
-      f"📥 ดาวน์โหลดผลลัพธ์ที่กรองแล้ว ({', '.join(selected_sentiments)}) (CSV)"
-      if selected_sentiments
-      else "📥 ดาวน์โหลดตารางสรุปผลลัพธ์ทั้งหมด (CSV)"
-  )
-  st.download_button(
-      label=download_label,
-      data=csv,
-      file_name="sentiment_results.csv",
-      mime="text/csv",
-  )
+    download_label = (
+        f"📥 ดาวน์โหลดผลลัพธ์ที่กรองแล้ว ({', '.join(selected_sentiments)}) (CSV)"
+        if selected_sentiments
+        else "📥 ดาวน์โหลดตารางสรุปผลลัพธ์ทั้งหมด (CSV)"
+    )
+    st.download_button(
+        label=download_label,
+        data=csv,
+        file_name="sentiment_results.csv",
+        mime="text/csv",
+    )
 else:
-  st.info("⬆️ กรุณาอัปโหลดไฟล์ CSV เพื่อเริ่มการวิเคราะห์")
+    st.info("⬆️ กรุณาอัปโหลดไฟล์ CSV เพื่อเริ่มการวิเคราะห์")
