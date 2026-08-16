@@ -5,3 +5,5 @@ libgdk-pixbuf-2.0-0
 libharfbuzz0b
 libffi-dev
 shared-mime-info
+fonts-thai-tlwg
+fonts-noto-cjk
