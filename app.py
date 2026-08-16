@@ -565,15 +565,22 @@ if uploaded_file is not None:
         st.markdown("---")
         st.subheader("📊 เปรียบเทียบ Sentiment ตามรุ่น/สี (Variation)")
 
+        # 🔹 1. คำนวณยอดรวมของแต่ละสี แล้วนำมาสร้างเป็นชื่อแกน X ใหม่ (เช่น "สีดำ (333)")
+        var_counts = std_df["variation"].value_counts()
+        std_df["variation_with_count"] = std_df["variation"].map(
+            lambda x: f"{x} ({var_counts.get(x, 0):,})"
+        )
+
+        # 🔹 2. เปลี่ยนแกน x ให้ไปใช้คอลัมน์ "variation_with_count"
         fig_var = px.histogram(
             std_df,
-            x="variation",
+            x="variation_with_count",  # 👈 แก้ตรงนี้
             color="sentiment_result",
             barmode="group",
             color_discrete_map=color_map,
             text_auto=True,
             labels={
-                "variation": "รุ่น/สีสินค้า",
+                "variation_with_count": "รุ่น/สีสินค้า",
                 "count": "จำนวนรีวิว",
                 "sentiment_result": "Sentiment",
             },
@@ -585,8 +592,6 @@ if uploaded_file is not None:
             legend_title_text="",
         )
         st.plotly_chart(fig_var, use_container_width=True)
-        # 📌 สรุปจำนวนรีวิวและยอดขายรวมแยกตามสี (เน้นสีดำ)
-        st.markdown("<br>", unsafe_allow_html=True)
         
         # คำนวณยอดรวม Sentiment แต่ละสี
         var_summary = (
