@@ -158,7 +158,7 @@ def evaluate_sentiment(row) -> str:
   return "Neutral (ปานกลาง / เป็นกลาง)"
 
 
-# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ค้นหาโมเดลอัตโนมัติ) ---
+# --- 3. ฟังก์ชันเรียกใช้ Gemini API สรุป Pros & Cons (ค้นหาโมเดลที่รองรับอัตโนมัติ) ---
 @st.cache_data(show_spinner=False)
 def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   if not review_texts:
@@ -192,35 +192,23 @@ def analyze_pros_cons_with_ai(review_texts: list, api_key: str):
   try:
     client = genai.Client(api_key=api_key)
 
-    # ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณเข้าถึงได้
-    valid_models = []
+    # ดึงรายชื่อโมเดลที่รองรับการสร้างข้อความ (generateContent) ใน API Key นี้
+    available_models = []
     for m in client.models.list():
-      # คัดกรองเฉพาะโมเดลที่รองรับ generateContent
-      if hasattr(m, "supported_generation_methods") and (
-          "generateContent" in m.supported_generation_methods
-      ):
-        valid_models.append(m.name)
-      elif not hasattr(m, "supported_generation_methods"):
-        valid_models.append(m.name)
+      methods = getattr(m, "supported_generation_methods", [])
+      if not methods or "generateContent" in methods:
+        available_models.append(m.name)
 
-    # ลำดับโมเดลที่ต้องการใช้งาน (เรียงตามลำดับความเหมาะสม)
-    preferred_keywords = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-pro",
-        "gemini-1.5-flash",
-    ]
+    # ค้นหาโมเดลตระกูล flash หรือ pro ที่เปิดใช้งานอยู่
     selected_model = None
-
-    for keyword in preferred_keywords:
-      matched = [m for m in valid_models if keyword in m]
-      if matched:
-        selected_model = matched[0]
+    for model_name in available_models:
+      if "flash" in model_name or "pro" in model_name:
+        selected_model = model_name
         break
 
-    # หากหาไม่เจอในรายการที่ชอบ ให้ใช้โมเดลแรกสุดที่ใช้งานได้
-    if not selected_model:
-      selected_model = valid_models[0] if valid_models else "gemini-2.5-flash"
+    # หากไม่พบ ให้ใช้โมเดลแรกในรายการ
+    if not selected_model and available_models:
+      selected_model = available_models[0]
 
     response = client.models.generate_content(
         model=selected_model,
