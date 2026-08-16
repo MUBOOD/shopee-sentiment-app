@@ -581,46 +581,47 @@ fig_var.update_layout(
 )
 st.plotly_chart(fig_var, use_container_width=True)
   # ☁️ Word Cloud คำยอดฮิตในรีวิว
-  review_text_pool = std_df[
-      std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
-  ]
+  # ☁️ Word Cloud คำยอดฮิตในรีวิว
+    review_text_pool = std_df[
+        std_df["review_text"] != "ไม่มีข้อความรีวิว (ให้ดาวอย่างเดียว)"
+    ]
 
-  if not review_text_pool.empty:
-    st.markdown("---")
-    st.subheader("☁️ Word Cloud คำยอดฮิตในรีวิว")
+    if not review_text_pool.empty:
+        st.markdown("---")
+        st.subheader("☁️ Word Cloud คำยอดฮิตในรีวิว")
 
-    wc_col1, wc_col2 = st.columns(2)
+        wc_col1, wc_col2 = st.columns(2)
 
-    def render_wordcloud(container, text_series, title, colormap):
-      combined_text = " ".join(text_series.astype(str))
-      if not combined_text.strip():
-        container.info(f"ไม่มีข้อความเพียงพอสำหรับ {title}")
-        return
-      wc = WordCloud(
-          font_path=FONT_REGULAR_PATH,
-          width=800,
-          height=500,
-          background_color="white",
-          colormap=colormap,
-          collocations=False,
-          regexp=r"[\u0E00-\u0E7Fa-zA-Z']+",
-      ).generate(combined_text)
-      fig, ax = plt.subplots()
-      ax.imshow(wc, interpolation="bilinear")
-      ax.axis("off")
-      container.markdown(f"**{title}**")
-      container.pyplot(fig)
-      plt.close(fig)
+        def render_wordcloud(container, text_series, title, colormap):
+            combined_text = " ".join(text_series.astype(str))
+            if not combined_text.strip():
+                container.info(f"ไม่มีข้อความเพียงพอสำหรับ {title}")
+                return
+            wc = WordCloud(
+                font_path=FONT_REGULAR_PATH,
+                width=800,
+                height=500,
+                background_color="white",
+                colormap=colormap,
+                collocations=False,
+                regexp=r"[\u0E00-\u0E7Fa-zA-Z']+",
+            ).generate(combined_text)
+            fig, ax = plt.subplots()
+            ax.imshow(wc, interpolation="bilinear")
+            ax.axis("off")
+            container.markdown(f"**{title}**")
+            container.pyplot(fig)
+            plt.close(fig)
 
-    pos_texts = review_text_pool[
-        review_text_pool["sentiment_result"] == "Positive (ดี / ด้านบวก)"
-    ]["review_text"]
-    neg_texts = review_text_pool[
-        review_text_pool["sentiment_result"] == "Negative (แย่ / ด้านลบ)"
-    ]["review_text"]
+        pos_texts = review_text_pool[
+            review_text_pool["sentiment_result"] == "Positive (ดี / ด้านบวก)"
+        ]["review_text"]
+        neg_texts = review_text_pool[
+            review_text_pool["sentiment_result"] == "Negative (แย่ / ด้านลบ)"
+        ]["review_text"]
 
-    render_wordcloud(wc_col1, pos_texts, "🟢 รีวิวด้านบวก", "Greens")
-    render_wordcloud(wc_col2, neg_texts, "🔴 รีวิวด้านลบ", "Reds")
+        render_wordcloud(wc_col1, pos_texts, "🟢 รีวิวด้านบวก", "Greens")
+        render_wordcloud(wc_col2, neg_texts, "🔴 รีวิวด้านลบ", "Reds")
 
   st.markdown("---")
 
